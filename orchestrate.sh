@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 # rheaOS build orchestrator - runs on a throwaway GitHub Actions runner.
 # Stages: tc1 toolchain -> tc2 kernel -> tc3 userland -> tc4 rootfs/ISO
@@ -16,8 +15,32 @@ mkdir -p "$SRC" "$BUILD" "$SYSROOT" "$ARTIFACTS"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 
 fetch() {
-  local url="$1" out="$SRC/$(basename "$1")"
-  [ -f "$out" ] || wget -q --show-progress -O "$out" "$url"
+  local url="$1"
+  local out="$SRC/$(basename "$1")"
+  local tmp="${out}.tmp"
+
+  # Reuse only a valid archive.
+  if [ -f "$out" ] && tar -tf "$out" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  rm -f "$out" "$tmp"
+
+  log "  downloading $(basename "$url")"
+  wget \
+    --https-only \
+    --tries=5 \
+    --waitretry=5 \
+    --timeout=60 \
+    --read-timeout=60 \
+    --no-verbose \
+    -O "$tmp" \
+    "$url"
+
+  test -s "$tmp"
+  tar -tf "$tmp" >/dev/null 2>&1
+
+  mv "$tmp" "$out"
 }
 
 # ---------- tc1: toolchain (binutils + zlib + glibc headers + gcc) ----------
